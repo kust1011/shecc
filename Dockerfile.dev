@@ -1,0 +1,22 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash \
+    build-essential \
+    ca-certificates \
+    clang \
+    file \
+    gcc-arm-linux-gnueabihf \
+    git \
+    graphviz \
+    jq \
+    make \
+    qemu-user \
+    qemu-user-binfmt \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /work
+
+CMD ["/bin/bash"]

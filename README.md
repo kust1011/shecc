@@ -88,6 +88,22 @@ Another approach is to manually download and install the toolchain from [ARM Dev
 
 Select "x86_64 Linux hosted cross toolchains" - "AArch32 GNU/Linux target with hard float (arm-none-linux-gnueabihf)" to download the toolchain.
 
+## Docker Development Environment
+
+If you prefer a one-command Linux development environment (including `qemu-arm` for stage2 checks), use the provided Docker image:
+
+```shell
+$ ./scripts/docker-dev.sh
+```
+
+This script builds `Dockerfile.dev`, mounts the current repository to `/work`, and starts an interactive shell inside the container.
+
+To run a full local validation (build + stage0 tests + stage2 tests):
+
+```shell
+$ ./scripts/docker-check.sh
+```
+
 ## Build and Verify
 
 Configure which backend you want, `shecc` supports ARMv7-A and RV32IM backend:
