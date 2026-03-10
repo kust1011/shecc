@@ -156,7 +156,9 @@ memcheck: $(OUT)/$(STAGE0)
 	$(Q)set +e; \
 	valgrind $(MEMCHECK_COMMON_FLAGS) \
 		--leak-check=full \
-		--show-leak-kinds=definite,indirect \
+		--show-leak-kinds=all \
+		--errors-for-leak-kinds=definite,indirect,possible \
+		--error-exitcode=1 \
 		$(OUT)/$(STAGE0) $(VALGRIND_SHECC_FLAGS) \
 		-o $(VALGRIND_OUTPUT_DIR)/bin/memcheck.elf \
 		$(VALGRIND_INPUT) \
@@ -168,7 +170,8 @@ memcheck: $(OUT)/$(STAGE0)
 		$(VALGRIND_OUTPUT_DIR)/memcheck.valgrind.log \
 		> $(VALGRIND_OUTPUT_DIR)/memcheck.summary.txt || true; \
 	echo "Memcheck artifacts written to $(VALGRIND_OUTPUT_DIR)"; \
-	echo "Memcheck exit code: $$ec"
+	echo "Memcheck exit code: $$ec"; \
+	exit $$ec
 
 memcheck-strict: $(OUT)/$(STAGE0)
 	$(VECHO) "Running strict Valgrind memcheck (fails on errors/leaks)\n"
@@ -176,7 +179,7 @@ memcheck-strict: $(OUT)/$(STAGE0)
 	$(Q)valgrind $(MEMCHECK_COMMON_FLAGS) \
 		--leak-check=full \
 		--show-leak-kinds=all \
-		--errors-for-leak-kinds=definite,indirect,possible \
+		--errors-for-leak-kinds=all \
 		--error-exitcode=1 \
 		$(OUT)/$(STAGE0) $(VALGRIND_SHECC_FLAGS) \
 		-o $(VALGRIND_OUTPUT_DIR)/bin/memcheck.elf \

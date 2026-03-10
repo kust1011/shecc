@@ -287,7 +287,8 @@ Artifacts:
 - `massif.report.txt`
 - `massif.exit_code`
 
-`make memcheck-strict` enables `--error-exitcode=1` and fails on Valgrind-reported memory errors/leaks.
+`make memcheck` uses Valgrind `--error-exitcode=1` and fails on memory errors plus definite/indirect/possible leaks.
+`make memcheck-strict` uses `--errors-for-leak-kinds=all` to fail on all leak kinds.
 
 ## Intermediate Representation
 
