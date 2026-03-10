@@ -66,6 +66,7 @@ SNAPSHOTS = $(foreach SNAPSHOT_ARCH,$(ARCHS), $(patsubst tests/%.c, tests/snapsh
 SNAPSHOTS += $(patsubst tests/%.c, tests/snapshots/%-arm-dynamic.json, $(TESTS))
 
 BENCH_SCRIPT := scripts/benchmark.py
+BENCH_VALIDATE_SCRIPT := scripts/validate_benchmark.py
 BENCH_OUTPUT_DIR ?= out/bench/latest
 BENCH_PROFILE ?= full
 BENCH_REPEAT ?= 5
@@ -185,7 +186,7 @@ bench-issue297: $(OUT)/$(STAGE0) $(BENCH_SCRIPT)
 		--runner "$(BENCH_RUNNER)" \
 		--output-dir $(BENCH_OUTPUT_DIR) \
 		--profile issue297 \
-		--repeat $(BENCH_REPEAT) $(BENCH_LIBC_FLAG)
+		--repeat $(BENCH_REPEAT) --no-fail-on-error $(BENCH_LIBC_FLAG)
 
 bench-memory-limit: $(OUT)/$(STAGE0) $(BENCH_SCRIPT)
 	$(VECHO) "Running memory-limit benchmark (%s MiB)\n" $(BENCH_MEMORY_LIMIT_MB)
@@ -196,47 +197,58 @@ bench-memory-limit: $(OUT)/$(STAGE0) $(BENCH_SCRIPT)
 		--output-dir $(BENCH_OUTPUT_DIR) \
 		--profile issue297 \
 		--repeat 1 \
-		--memory-limit-mb $(BENCH_MEMORY_LIMIT_MB) $(BENCH_LIBC_FLAG)
+		--memory-limit-mb $(BENCH_MEMORY_LIMIT_MB) \
+		--no-fail-on-error $(BENCH_LIBC_FLAG)
 
 memcheck: $(OUT)/$(STAGE0) $(BENCH_SCRIPT)
 	$(VECHO) "Running Valgrind memcheck on issue297 long program\n"
 	$(Q)mkdir -p $(BENCH_OUTPUT_DIR)/bin
-	$(Q)python3 $(BENCH_SCRIPT) prepare --repo-root . --output-dir $(BENCH_OUTPUT_DIR) --profile issue297
-	$(Q)valgrind --leak-check=full --show-leak-kinds=all \
+	$(Q)set +e; \
+	valgrind --leak-check=full --show-leak-kinds=all \
 		--track-origins=yes \
 		$(OUT)/$(STAGE0) --no-libc \
 		-o $(BENCH_OUTPUT_DIR)/bin/memcheck-long.elf \
-		$(BENCH_OUTPUT_DIR)/generated_sources/long_declarations_2000.c \
+		tests/memory/long_statements_100000.c \
 		> $(BENCH_OUTPUT_DIR)/memcheck.stdout.log \
-		2> $(BENCH_OUTPUT_DIR)/memcheck.valgrind.log
-	$(Q)grep -E "definitely lost:|indirectly lost:|ERROR SUMMARY:" \
+		2> $(BENCH_OUTPUT_DIR)/memcheck.valgrind.log; \
+	echo $$? > $(BENCH_OUTPUT_DIR)/memcheck.exit_code
+	$(Q)grep -E "definitely lost:|indirectly lost:|ERROR SUMMARY:|Segmentation fault" \
 		$(BENCH_OUTPUT_DIR)/memcheck.valgrind.log \
-		> $(BENCH_OUTPUT_DIR)/memcheck.summary.txt
+		> $(BENCH_OUTPUT_DIR)/memcheck.summary.txt || true
 
 memcheck-strict: $(OUT)/$(STAGE0) $(BENCH_SCRIPT)
 	$(VECHO) "Running strict Valgrind memcheck (fails on leaks)\n"
 	$(Q)mkdir -p $(BENCH_OUTPUT_DIR)/bin
-	$(Q)python3 $(BENCH_SCRIPT) prepare --repo-root . --output-dir $(BENCH_OUTPUT_DIR) --profile issue297
 	$(Q)valgrind --leak-check=full --show-leak-kinds=all \
 		--track-origins=yes --error-exitcode=1 \
 		$(OUT)/$(STAGE0) --no-libc \
 		-o $(BENCH_OUTPUT_DIR)/bin/memcheck-long.elf \
-		$(BENCH_OUTPUT_DIR)/generated_sources/long_declarations_2000.c \
+		tests/memory/long_statements_100000.c \
 		> $(BENCH_OUTPUT_DIR)/memcheck.stdout.log \
 		2> $(BENCH_OUTPUT_DIR)/memcheck.valgrind.log
 
 massif: $(OUT)/$(STAGE0) $(BENCH_SCRIPT)
 	$(VECHO) "Running Valgrind massif on issue297 long program\n"
 	$(Q)mkdir -p $(BENCH_OUTPUT_DIR)/bin
-	$(Q)python3 $(BENCH_SCRIPT) prepare --repo-root . --output-dir $(BENCH_OUTPUT_DIR) --profile issue297
-	$(Q)valgrind --tool=massif --pages-as-heap=yes \
+	$(Q)set +e; \
+	valgrind --tool=massif --pages-as-heap=yes \
 		--massif-out-file=$(BENCH_OUTPUT_DIR)/massif.out \
 		$(OUT)/$(STAGE0) --no-libc \
 		-o $(BENCH_OUTPUT_DIR)/bin/massif-long.elf \
-		$(BENCH_OUTPUT_DIR)/generated_sources/long_declarations_2000.c \
+		tests/memory/long_statements_100000.c \
 		> $(BENCH_OUTPUT_DIR)/massif.stdout.log \
-		2> $(BENCH_OUTPUT_DIR)/massif.stderr.log
-	$(Q)ms_print $(BENCH_OUTPUT_DIR)/massif.out > $(BENCH_OUTPUT_DIR)/massif.report.txt
+		2> $(BENCH_OUTPUT_DIR)/massif.stderr.log; \
+	echo $$? > $(BENCH_OUTPUT_DIR)/massif.exit_code
+	$(Q)if [ -f $(BENCH_OUTPUT_DIR)/massif.out ]; then \
+		ms_print $(BENCH_OUTPUT_DIR)/massif.out > $(BENCH_OUTPUT_DIR)/massif.report.txt; \
+	else \
+		echo "massif.out was not generated. see massif.stderr.log" > $(BENCH_OUTPUT_DIR)/massif.report.txt; \
+	fi
+
+bench-validate: $(BENCH_VALIDATE_SCRIPT)
+	$(Q)python3 $(BENCH_VALIDATE_SCRIPT) \
+		--repo-root . \
+		--bench-dir $(BENCH_OUTPUT_DIR)
 
 bench-save-baseline: bench-run
 	$(Q)if [ -z "$(NAME)" ]; then \
