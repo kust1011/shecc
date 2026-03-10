@@ -1,12 +1,20 @@
-# Memory Benchmark Programs (Issue #297)
+# Memory Benchmark Programs
 
-This directory contains memory stress programs aligned with issue #297:
+This directory contains all benchmark source programs used by `scripts/benchmark.py`.
 
-- `wide_globals_10000.c`: wide program with 10,000 global variables.
-- `deep_if_1000.c`: deep control-flow program with 1,000 nested `if` blocks.
-- `long_statements_100000.c`: long program with 100,000 sequential statements.
+Profiles:
 
-Regeneration:
+- `quick`: `wide_globals_300.c`, `long_declarations_500.c`, `many_functions_20.c`, `deep_if_24.c`, `branch_chain_20.c`
+- `full`: `wide_globals_1000.c`, `long_declarations_2000.c`, `many_functions_50.c`, `deep_if_48.c`, `branch_chain_40.c`
+- `issue297`: `wide_globals_10000.c`, `deep_if_1000.c`, `long_statements_100000.c`
+
+Regenerate all benchmark sources:
+
+```bash
+tests/memory/generate_memory_benchmarks.py --profile all
+```
+
+Regenerate only issue #297 sources:
 
 ```bash
 tests/memory/generate_issue297_tests.py

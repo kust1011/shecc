@@ -31,84 +31,51 @@ except ImportError:
 class CaseSpec:
     name: str
     source: str
-    generated: bool = False
-    generator: Optional[str] = None
-    scale: int = 0
 
 
 PROFILE_CASES: Dict[str, List[CaseSpec]] = {
     "quick": [
         CaseSpec(
             name="wide_globals_300",
-            source="wide_globals_300.c",
-            generated=True,
-            generator="wide_globals",
-            scale=300,
+            source="tests/memory/wide_globals_300.c",
         ),
         CaseSpec(
             name="long_declarations_500",
-            source="long_declarations_500.c",
-            generated=True,
-            generator="long_declarations",
-            scale=500,
+            source="tests/memory/long_declarations_500.c",
         ),
         CaseSpec(
             name="many_functions_20",
-            source="many_functions_20.c",
-            generated=True,
-            generator="many_functions",
-            scale=20,
+            source="tests/memory/many_functions_20.c",
         ),
         CaseSpec(
             name="deep_if_24",
-            source="deep_if_24.c",
-            generated=True,
-            generator="deep_if",
-            scale=24,
+            source="tests/memory/deep_if_24.c",
         ),
         CaseSpec(
             name="branch_chain_20",
-            source="branch_chain_20.c",
-            generated=True,
-            generator="branch_chain",
-            scale=20,
+            source="tests/memory/branch_chain_20.c",
         ),
     ],
     "full": [
         CaseSpec(
             name="wide_globals_1000",
-            source="wide_globals_1000.c",
-            generated=True,
-            generator="wide_globals",
-            scale=1000,
+            source="tests/memory/wide_globals_1000.c",
         ),
         CaseSpec(
             name="long_declarations_2000",
-            source="long_declarations_2000.c",
-            generated=True,
-            generator="long_declarations",
-            scale=2000,
+            source="tests/memory/long_declarations_2000.c",
         ),
         CaseSpec(
             name="many_functions_50",
-            source="many_functions_50.c",
-            generated=True,
-            generator="many_functions",
-            scale=50,
+            source="tests/memory/many_functions_50.c",
         ),
         CaseSpec(
             name="deep_if_48",
-            source="deep_if_48.c",
-            generated=True,
-            generator="deep_if",
-            scale=48,
+            source="tests/memory/deep_if_48.c",
         ),
         CaseSpec(
             name="branch_chain_40",
-            source="branch_chain_40.c",
-            generated=True,
-            generator="branch_chain",
-            scale=40,
+            source="tests/memory/branch_chain_40.c",
         ),
     ],
     "issue297": [
@@ -125,121 +92,6 @@ PROFILE_CASES: Dict[str, List[CaseSpec]] = {
             source="tests/memory/long_statements_100000.c",
         ),
     ],
-}
-
-
-def generate_wide_globals(path: Path, count: int) -> None:
-    lines: List[str] = []
-    for idx in range(count):
-        lines.append("int g_%d = %d;" % (idx, idx % 97))
-    lines.append("")
-    lines.append("int main(void)")
-    lines.append("{")
-    lines.append("    int acc = 0;")
-    stride = max(1, count // 32)
-    for idx in range(0, count, stride):
-        lines.append("    acc += g_%d;" % idx)
-    lines.append("    return acc & 255;")
-    lines.append("}")
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def generate_long_statements(path: Path, count: int) -> None:
-    lines = [
-        "int main(void)",
-        "{",
-        "    int a = 1;",
-        "    int b = 3;",
-        "    int c = 7;",
-    ]
-    for idx in range(count):
-        lines.append("    a = a + b + %d;" % (idx % 17))
-        lines.append("    b = b ^ (a + %d);" % (idx % 11))
-        lines.append("    c = c + (b & 31);")
-    lines.extend(
-        [
-            "    return (a + b + c) & 255;",
-            "}",
-        ]
-    )
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def generate_long_declarations(path: Path, count: int) -> None:
-    lines = [
-        "int main(void)",
-        "{",
-    ]
-    for idx in range(count):
-        lines.append("    int v_%d = %d;" % (idx, idx % 11))
-    lines.extend(
-        [
-            "    return 0;",
-            "}",
-        ]
-    )
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def generate_many_functions(path: Path, count: int) -> None:
-    lines: List[str] = []
-    for idx in range(count):
-        lines.append(
-            "int fn_%d(int x)\n{\n    return x + %d;\n}\n" % (idx, (idx % 19) + 1)
-        )
-    lines.append("int main(void)")
-    lines.append("{")
-    lines.append("    int acc = 0;")
-    for idx in range(count):
-        lines.append("    acc += fn_%d(%d);" % (idx, idx % 7))
-    lines.append("    return acc & 255;")
-    lines.append("}")
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def generate_deep_if(path: Path, depth: int) -> None:
-    lines = [
-        "int main(void)",
-        "{",
-        "    int x = 0;",
-        "    int y = 0;",
-    ]
-    for idx in range(depth):
-        lines.append(("    " * (idx + 1)) + "if (x == %d) {" % idx)
-        lines.append(("    " * (idx + 2)) + "x = x + 1;")
-        lines.append(("    " * (idx + 2)) + "y = y + x;")
-    for idx in reversed(range(depth)):
-        lines.append(("    " * (idx + 1)) + "}")
-    lines.append("    return y & 255;")
-    lines.append("}")
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def generate_branch_chain(path: Path, count: int) -> None:
-    lines = [
-        "int main(void)",
-        "{",
-        "    int x = 0;",
-        "    int y = 0;",
-    ]
-    for idx in range(count):
-        lines.append("    if (x == %d) y = y + %d;" % (idx, (idx % 31) + 1))
-    lines.extend(
-        [
-            "    return y & 255;",
-            "}",
-        ]
-    )
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-GENERATOR_MAP = {
-    "wide_globals": generate_wide_globals,
-    "long_statements": generate_long_statements,
-    "long_declarations": generate_long_declarations,
-    "many_functions": generate_many_functions,
-    "deep_if": generate_deep_if,
-    "branch_chain": generate_branch_chain,
 }
 
 
@@ -326,22 +178,7 @@ def mean_or_none(values: List[float]) -> Optional[float]:
     return float(statistics.fmean(values))
 
 
-def create_sources(repo_root: Path, source_root: Path, cases: List[CaseSpec]) -> None:
-    source_root.mkdir(parents=True, exist_ok=True)
-    for case in cases:
-        if not case.generated:
-            continue
-        target = source_root / case.source
-        target.parent.mkdir(parents=True, exist_ok=True)
-        generator = GENERATOR_MAP.get(case.generator or "")
-        if generator is None:
-            raise ValueError("Unknown generator: %s" % case.generator)
-        generator(target, case.scale)
-
-
-def resolve_source(repo_root: Path, source_root: Path, case: CaseSpec) -> Path:
-    if case.generated:
-        return source_root / case.source
+def resolve_source(repo_root: Path, case: CaseSpec) -> Path:
     return repo_root / case.source
 
 
@@ -358,18 +195,17 @@ def build_case_rows(
     rows: List[Dict[str, object]] = []
     bin_dir = out_dir / "bin"
     log_dir = out_dir / "logs"
-    src_dir = out_dir / "generated_sources"
     bin_dir.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
-
-    create_sources(repo_root, src_dir, cases)
 
     shecc_cmd_base = list(runner_prefix) + [str(shecc_path)]
     if not include_libc:
         shecc_cmd_base.append("--no-libc")
 
     for case in cases:
-        src_path = resolve_source(repo_root, src_dir, case)
+        src_path = resolve_source(repo_root, case)
+        if not src_path.exists():
+            raise FileNotFoundError("benchmark source not found: %s" % src_path)
         for run_id in range(1, repeat + 1):
             out_bin = bin_dir / ("%s.elf" % case.name)
             stderr_log = log_dir / ("%s.run%d.stderr.log" % (case.name, run_id))
@@ -387,7 +223,6 @@ def build_case_rows(
                     "case": case.name,
                     "run": run_id,
                     "source": str(src_path.relative_to(repo_root)),
-                    "generated": case.generated,
                     "exit_code": metrics["exit_code"],
                     "elapsed_s": metrics["elapsed_s"],
                     "max_rss_kb": metrics["max_rss_kb"],
@@ -555,7 +390,6 @@ def run_benchmarks(args: argparse.Namespace) -> int:
                 "case",
                 "run",
                 "source",
-                "generated",
                 "exit_code",
                 "elapsed_s",
                 "max_rss_kb",
@@ -592,39 +426,6 @@ def run_benchmarks(args: argparse.Namespace) -> int:
 
     if args.fail_on_error and not summary["overall"]["all_successful"]:
         return 1
-    return 0
-
-
-def prepare_benchmarks(args: argparse.Namespace) -> int:
-    repo_root = Path(args.repo_root).resolve()
-    out_dir = Path(args.output_dir).resolve()
-
-    if args.profile not in PROFILE_CASES:
-        print("error: unsupported profile: %s" % args.profile, file=sys.stderr)
-        return 2
-
-    out_dir.mkdir(parents=True, exist_ok=True)
-    src_dir = out_dir / "generated_sources"
-    create_sources(repo_root, src_dir, PROFILE_CASES[args.profile])
-
-    manifest = {
-        "profile": args.profile,
-        "generated_sources": [],
-    }
-    for case in PROFILE_CASES[args.profile]:
-        source_path = resolve_source(repo_root, src_dir, case)
-        manifest["generated_sources"].append(
-            {
-                "case": case.name,
-                "path": str(source_path),
-                "generated": case.generated,
-            }
-        )
-
-    manifest_path = out_dir / "generated_sources_manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
-    print("Generated benchmark sources at: %s" % src_dir)
-    print("Generated source manifest   : %s" % manifest_path)
     return 0
 
 
@@ -733,7 +534,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    run_parser = subparsers.add_parser("run", help="Generate workloads and run benchmark")
+    run_parser = subparsers.add_parser("run", help="Run benchmark workloads")
     run_parser.add_argument(
         "--repo-root",
         default=".",
@@ -784,26 +585,6 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         help="Do not fail command when one or more benchmark runs fail.",
     )
 
-    prepare_parser = subparsers.add_parser(
-        "prepare", help="Generate benchmark source files without compiling."
-    )
-    prepare_parser.add_argument(
-        "--repo-root",
-        default=".",
-        help="Path to shecc repository root (default: current directory).",
-    )
-    prepare_parser.add_argument(
-        "--output-dir",
-        default="out/bench/latest",
-        help="Directory where generated benchmark sources are written.",
-    )
-    prepare_parser.add_argument(
-        "--profile",
-        default="issue297",
-        choices=sorted(PROFILE_CASES.keys()),
-        help="Benchmark profile to generate.",
-    )
-
     compare_parser = subparsers.add_parser(
         "compare", help="Compare two benchmark summary.json files."
     )
@@ -825,8 +606,6 @@ def main(argv: Sequence[str]) -> int:
     args = parse_args(argv)
     if args.command == "run":
         return run_benchmarks(args)
-    if args.command == "prepare":
-        return prepare_benchmarks(args)
     if args.command == "compare":
         return compare_summaries(args)
     return 2

@@ -265,6 +265,9 @@ Run benchmark tasks in Docker:
 $ ./scripts/docker-env.sh exec "make bench-quick"
 ```
 
+All benchmark profiles (`quick`, `full`, `issue297`) now read versioned source files from `tests/memory/`.
+`scripts/benchmark.py` no longer generates benchmark C files at runtime.
+
 Issue #297-focused profile:
 ```shell
 $ ./scripts/docker-env.sh exec "make bench-issue297 BENCH_REPEAT=5"

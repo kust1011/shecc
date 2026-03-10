@@ -1,4 +1,4 @@
-/* Auto-generated for issue #297 memory benchmark: wide globals */
+/* Auto-generated benchmark source: wide globals */
 
 int g_0 = 0;
 int g_1 = 1;

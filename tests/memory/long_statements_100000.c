@@ -1,4 +1,4 @@
-/* Auto-generated for issue #297 memory benchmark: long statement stream */
+/* Auto-generated benchmark source: long statements */
 
 int main(void)
 {
