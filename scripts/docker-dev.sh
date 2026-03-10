@@ -2,12 +2,6 @@
 
 set -euo pipefail
 
-IMAGE_NAME="${IMAGE_NAME:-shecc-dev:local}"
-WORKSPACE="${PWD}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-docker build -f Dockerfile.dev -t "$IMAGE_NAME" .
-docker run --rm -it \
-    -v "$WORKSPACE":"$WORKSPACE" \
-    -w "$WORKSPACE" \
-    "$IMAGE_NAME" \
-    bash
+"$SCRIPT_DIR/docker-env.sh" shell

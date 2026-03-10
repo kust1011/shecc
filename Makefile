@@ -71,6 +71,8 @@ BENCH_PROFILE ?= full
 BENCH_REPEAT ?= 5
 BENCH_BASELINE_DIR ?= benchmarks/baselines
 BENCH_WITH_LIBC ?= 0
+BENCH_MEMORY_LIMIT_MB ?= 256
+BENCH_RUNNER ?=
 BENCH_LIBC_FLAG :=
 ifeq ($(BENCH_WITH_LIBC),1)
 BENCH_LIBC_FLAG := --with-libc
@@ -160,7 +162,7 @@ bench-run: $(OUT)/$(STAGE0) $(BENCH_SCRIPT)
 	$(Q)python3 $(BENCH_SCRIPT) run \
 		--repo-root . \
 		--shecc $(OUT)/$(STAGE0) \
-		--runner "$(TARGET_EXEC)" \
+		--runner "$(BENCH_RUNNER)" \
 		--output-dir $(BENCH_OUTPUT_DIR) \
 		--profile $(BENCH_PROFILE) \
 		--repeat $(BENCH_REPEAT) $(BENCH_LIBC_FLAG)
@@ -170,10 +172,71 @@ bench-quick: $(OUT)/$(STAGE0) $(BENCH_SCRIPT)
 	$(Q)python3 $(BENCH_SCRIPT) run \
 		--repo-root . \
 		--shecc $(OUT)/$(STAGE0) \
-		--runner "$(TARGET_EXEC)" \
+		--runner "$(BENCH_RUNNER)" \
 		--output-dir $(BENCH_OUTPUT_DIR) \
 		--profile quick \
 		--repeat 3 $(BENCH_LIBC_FLAG)
+
+bench-issue297: $(OUT)/$(STAGE0) $(BENCH_SCRIPT)
+	$(VECHO) "Running issue297 benchmark profile=%s repeat=%s\n" issue297 $(BENCH_REPEAT)
+	$(Q)python3 $(BENCH_SCRIPT) run \
+		--repo-root . \
+		--shecc $(OUT)/$(STAGE0) \
+		--runner "$(BENCH_RUNNER)" \
+		--output-dir $(BENCH_OUTPUT_DIR) \
+		--profile issue297 \
+		--repeat $(BENCH_REPEAT) $(BENCH_LIBC_FLAG)
+
+bench-memory-limit: $(OUT)/$(STAGE0) $(BENCH_SCRIPT)
+	$(VECHO) "Running memory-limit benchmark (%s MiB)\n" $(BENCH_MEMORY_LIMIT_MB)
+	$(Q)python3 $(BENCH_SCRIPT) run \
+		--repo-root . \
+		--shecc $(OUT)/$(STAGE0) \
+		--runner "$(BENCH_RUNNER)" \
+		--output-dir $(BENCH_OUTPUT_DIR) \
+		--profile issue297 \
+		--repeat 1 \
+		--memory-limit-mb $(BENCH_MEMORY_LIMIT_MB) $(BENCH_LIBC_FLAG)
+
+memcheck: $(OUT)/$(STAGE0) $(BENCH_SCRIPT)
+	$(VECHO) "Running Valgrind memcheck on issue297 long program\n"
+	$(Q)mkdir -p $(BENCH_OUTPUT_DIR)/bin
+	$(Q)python3 $(BENCH_SCRIPT) prepare --repo-root . --output-dir $(BENCH_OUTPUT_DIR) --profile issue297
+	$(Q)valgrind --leak-check=full --show-leak-kinds=all \
+		--track-origins=yes \
+		$(OUT)/$(STAGE0) --no-libc \
+		-o $(BENCH_OUTPUT_DIR)/bin/memcheck-long.elf \
+		$(BENCH_OUTPUT_DIR)/generated_sources/long_declarations_2000.c \
+		> $(BENCH_OUTPUT_DIR)/memcheck.stdout.log \
+		2> $(BENCH_OUTPUT_DIR)/memcheck.valgrind.log
+	$(Q)grep -E "definitely lost:|indirectly lost:|ERROR SUMMARY:" \
+		$(BENCH_OUTPUT_DIR)/memcheck.valgrind.log \
+		> $(BENCH_OUTPUT_DIR)/memcheck.summary.txt
+
+memcheck-strict: $(OUT)/$(STAGE0) $(BENCH_SCRIPT)
+	$(VECHO) "Running strict Valgrind memcheck (fails on leaks)\n"
+	$(Q)mkdir -p $(BENCH_OUTPUT_DIR)/bin
+	$(Q)python3 $(BENCH_SCRIPT) prepare --repo-root . --output-dir $(BENCH_OUTPUT_DIR) --profile issue297
+	$(Q)valgrind --leak-check=full --show-leak-kinds=all \
+		--track-origins=yes --error-exitcode=1 \
+		$(OUT)/$(STAGE0) --no-libc \
+		-o $(BENCH_OUTPUT_DIR)/bin/memcheck-long.elf \
+		$(BENCH_OUTPUT_DIR)/generated_sources/long_declarations_2000.c \
+		> $(BENCH_OUTPUT_DIR)/memcheck.stdout.log \
+		2> $(BENCH_OUTPUT_DIR)/memcheck.valgrind.log
+
+massif: $(OUT)/$(STAGE0) $(BENCH_SCRIPT)
+	$(VECHO) "Running Valgrind massif on issue297 long program\n"
+	$(Q)mkdir -p $(BENCH_OUTPUT_DIR)/bin
+	$(Q)python3 $(BENCH_SCRIPT) prepare --repo-root . --output-dir $(BENCH_OUTPUT_DIR) --profile issue297
+	$(Q)valgrind --tool=massif --pages-as-heap=yes \
+		--massif-out-file=$(BENCH_OUTPUT_DIR)/massif.out \
+		$(OUT)/$(STAGE0) --no-libc \
+		-o $(BENCH_OUTPUT_DIR)/bin/massif-long.elf \
+		$(BENCH_OUTPUT_DIR)/generated_sources/long_declarations_2000.c \
+		> $(BENCH_OUTPUT_DIR)/massif.stdout.log \
+		2> $(BENCH_OUTPUT_DIR)/massif.stderr.log
+	$(Q)ms_print $(BENCH_OUTPUT_DIR)/massif.out > $(BENCH_OUTPUT_DIR)/massif.report.txt
 
 bench-save-baseline: bench-run
 	$(Q)if [ -z "$(NAME)" ]; then \
@@ -244,7 +307,7 @@ bootstrap: $(OUT)/$(STAGE2)
 $(BUILD_SESSION):
 	$(PRINTF) "ARCH=$(ARCH)" > $@
 
-.PHONY: clean bench-run bench-quick bench-save-baseline bench-compare
+.PHONY: clean bench-run bench-quick bench-issue297 bench-memory-limit memcheck memcheck-strict massif bench-save-baseline bench-compare
 clean:
 	-$(RM) $(OUT)/$(STAGE0) $(OUT)/$(STAGE1) $(OUT)/$(STAGE2)
 	-$(RM) $(OBJS) $(deps)

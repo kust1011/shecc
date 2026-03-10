@@ -4,6 +4,7 @@ This directory stores versioned benchmark metadata for optimization studies.
 
 - `baselines/*.json` keeps saved benchmark summaries from `make bench-save-baseline`.
 - Benchmark run outputs are generated under `out/bench/` and are intentionally not committed.
+- Issue #297 runs should use `BENCH_PROFILE=issue297`.
 
 Suggested baseline naming:
 

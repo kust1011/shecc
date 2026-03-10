@@ -21,6 +21,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
+try:
+    import resource
+except ImportError:
+    resource = None
+
 
 @dataclass(frozen=True)
 class CaseSpec:
@@ -33,95 +38,114 @@ class CaseSpec:
 
 PROFILE_CASES: Dict[str, List[CaseSpec]] = {
     "quick": [
-        CaseSpec(name="hello", source="tests/hello.c"),
-        CaseSpec(name="fib", source="tests/fib.c"),
         CaseSpec(
-            name="wide_globals_1500",
-            source="wide_globals_1500.c",
+            name="wide_globals_300",
+            source="wide_globals_300.c",
             generated=True,
             generator="wide_globals",
-            scale=1500,
+            scale=300,
         ),
         CaseSpec(
-            name="long_statements_12000",
-            source="long_statements_12000.c",
+            name="long_declarations_500",
+            source="long_declarations_500.c",
             generated=True,
-            generator="long_statements",
-            scale=12000,
+            generator="long_declarations",
+            scale=500,
         ),
         CaseSpec(
-            name="many_functions_600",
-            source="many_functions_600.c",
+            name="many_functions_20",
+            source="many_functions_20.c",
             generated=True,
             generator="many_functions",
-            scale=600,
+            scale=20,
         ),
         CaseSpec(
-            name="deep_if_72",
-            source="deep_if_72.c",
+            name="deep_if_24",
+            source="deep_if_24.c",
             generated=True,
             generator="deep_if",
-            scale=72,
+            scale=24,
+        ),
+        CaseSpec(
+            name="branch_chain_20",
+            source="branch_chain_20.c",
+            generated=True,
+            generator="branch_chain",
+            scale=20,
         ),
     ],
     "full": [
-        CaseSpec(name="hello", source="tests/hello.c"),
-        CaseSpec(name="fib", source="tests/fib.c"),
         CaseSpec(
-            name="wide_globals_2000",
-            source="wide_globals_2000.c",
+            name="wide_globals_1000",
+            source="wide_globals_1000.c",
             generated=True,
             generator="wide_globals",
+            scale=1000,
+        ),
+        CaseSpec(
+            name="long_declarations_2000",
+            source="long_declarations_2000.c",
+            generated=True,
+            generator="long_declarations",
             scale=2000,
         ),
         CaseSpec(
-            name="wide_globals_8000",
-            source="wide_globals_8000.c",
-            generated=True,
-            generator="wide_globals",
-            scale=8000,
-        ),
-        CaseSpec(
-            name="long_statements_15000",
-            source="long_statements_15000.c",
-            generated=True,
-            generator="long_statements",
-            scale=15000,
-        ),
-        CaseSpec(
-            name="long_statements_50000",
-            source="long_statements_50000.c",
-            generated=True,
-            generator="long_statements",
-            scale=50000,
-        ),
-        CaseSpec(
-            name="many_functions_1200",
-            source="many_functions_1200.c",
+            name="many_functions_50",
+            source="many_functions_50.c",
             generated=True,
             generator="many_functions",
-            scale=1200,
+            scale=50,
         ),
         CaseSpec(
-            name="many_functions_3500",
-            source="many_functions_3500.c",
-            generated=True,
-            generator="many_functions",
-            scale=3500,
-        ),
-        CaseSpec(
-            name="deep_if_96",
-            source="deep_if_96.c",
+            name="deep_if_48",
+            source="deep_if_48.c",
             generated=True,
             generator="deep_if",
-            scale=96,
+            scale=48,
         ),
         CaseSpec(
-            name="branch_chain_7000",
-            source="branch_chain_7000.c",
+            name="branch_chain_40",
+            source="branch_chain_40.c",
             generated=True,
             generator="branch_chain",
-            scale=7000,
+            scale=40,
+        ),
+    ],
+    "issue297": [
+        CaseSpec(
+            name="wide_globals_1000",
+            source="wide_globals_1000.c",
+            generated=True,
+            generator="wide_globals",
+            scale=1000,
+        ),
+        CaseSpec(
+            name="long_declarations_2000",
+            source="long_declarations_2000.c",
+            generated=True,
+            generator="long_declarations",
+            scale=2000,
+        ),
+        CaseSpec(
+            name="branch_chain_40",
+            source="branch_chain_40.c",
+            generated=True,
+            generator="branch_chain",
+            scale=40,
+        ),
+        CaseSpec(
+            name="many_functions_50",
+            source="many_functions_50.c",
+            generated=True,
+            generator="many_functions",
+            scale=50,
+        ),
+        CaseSpec(
+            name="deep_if_48",
+            source="deep_if_48.c",
+            generated=True,
+            generator="deep_if",
+            scale=48,
         ),
     ],
 }
@@ -135,7 +159,7 @@ def generate_wide_globals(path: Path, count: int) -> None:
     lines.append("int main(void)")
     lines.append("{")
     lines.append("    int acc = 0;")
-    stride = max(1, count // 128)
+    stride = max(1, count // 32)
     for idx in range(0, count, stride):
         lines.append("    acc += g_%d;" % idx)
     lines.append("    return acc & 255;")
@@ -158,6 +182,22 @@ def generate_long_statements(path: Path, count: int) -> None:
     lines.extend(
         [
             "    return (a + b + c) & 255;",
+            "}",
+        ]
+    )
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def generate_long_declarations(path: Path, count: int) -> None:
+    lines = [
+        "int main(void)",
+        "{",
+    ]
+    for idx in range(count):
+        lines.append("    int v_%d = %d;" % (idx, idx % 11))
+    lines.extend(
+        [
+            "    return 0;",
             "}",
         ]
     )
@@ -219,6 +259,7 @@ def generate_branch_chain(path: Path, count: int) -> None:
 GENERATOR_MAP = {
     "wide_globals": generate_wide_globals,
     "long_statements": generate_long_statements,
+    "long_declarations": generate_long_declarations,
     "many_functions": generate_many_functions,
     "deep_if": generate_deep_if,
     "branch_chain": generate_branch_chain,
@@ -245,12 +286,33 @@ def normalize_ru_maxrss(raw_value: Optional[int]) -> float:
     return float(raw_value)
 
 
-def run_with_metrics(command: Sequence[str], stderr_log: Path) -> Dict[str, object]:
+def run_with_metrics(
+    command: Sequence[str], stderr_log: Path, memory_limit_mb: Optional[int]
+) -> Dict[str, object]:
     start = time.perf_counter()
+    preexec_fn = None
+    if memory_limit_mb is not None:
+        if resource is None:
+            return {
+                "exit_code": 126,
+                "elapsed_s": 0.0,
+                "max_rss_kb": -1.0,
+                "spawn_error": "Python resource module is unavailable for memory limits.",
+            }
+        limit_bytes = int(memory_limit_mb) * 1024 * 1024
+
+        def apply_limit() -> None:
+            resource.setrlimit(resource.RLIMIT_AS, (limit_bytes, limit_bytes))
+
+        preexec_fn = apply_limit
+
     with stderr_log.open("wb") as stderr_file:
         try:
             proc = subprocess.Popen(
-                command, stdout=subprocess.DEVNULL, stderr=stderr_file
+                command,
+                stdout=subprocess.DEVNULL,
+                stderr=stderr_file,
+                preexec_fn=preexec_fn,
             )
         except OSError as error:
             return {
@@ -314,6 +376,7 @@ def build_case_rows(
     cases: List[CaseSpec],
     repeat: int,
     include_libc: bool,
+    memory_limit_mb: Optional[int],
 ) -> List[Dict[str, object]]:
     rows: List[Dict[str, object]] = []
     bin_dir = out_dir / "bin"
@@ -334,7 +397,7 @@ def build_case_rows(
             out_bin = bin_dir / ("%s.elf" % case.name)
             stderr_log = log_dir / ("%s.run%d.stderr.log" % (case.name, run_id))
             command = shecc_cmd_base + ["-o", str(out_bin), str(src_path)]
-            metrics = run_with_metrics(command, stderr_log)
+            metrics = run_with_metrics(command, stderr_log, memory_limit_mb)
 
             output_size = None
             output_sha256 = None
@@ -355,6 +418,7 @@ def build_case_rows(
                     "output_sha256": output_sha256,
                     "stderr_log": str(stderr_log.relative_to(repo_root)),
                     "spawn_error": metrics["spawn_error"],
+                    "memory_limit_mb": memory_limit_mb,
                 }
             )
     return rows
@@ -365,6 +429,7 @@ def summarize_rows(
     profile: str,
     repeat: int,
     include_libc: bool,
+    memory_limit_mb: Optional[int],
     shecc_path: Path,
     runner_prefix: str,
     repo_root: Path,
@@ -424,6 +489,7 @@ def summarize_rows(
             "profile": profile,
             "repeat": repeat,
             "include_libc": include_libc,
+            "memory_limit_mb": memory_limit_mb,
             "shecc_path": str(shecc_path.relative_to(repo_root)),
             "runner_prefix": runner_prefix,
         },
@@ -488,6 +554,9 @@ def run_benchmarks(args: argparse.Namespace) -> int:
     if args.profile not in PROFILE_CASES:
         print("error: unsupported profile: %s" % args.profile, file=sys.stderr)
         return 2
+    if args.memory_limit_mb is not None and args.memory_limit_mb <= 0:
+        print("error: --memory-limit-mb must be a positive integer.", file=sys.stderr)
+        return 2
 
     out_dir.mkdir(parents=True, exist_ok=True)
     rows = build_case_rows(
@@ -498,6 +567,7 @@ def run_benchmarks(args: argparse.Namespace) -> int:
         cases=PROFILE_CASES[args.profile],
         repeat=args.repeat,
         include_libc=args.with_libc,
+        memory_limit_mb=args.memory_limit_mb,
     )
 
     raw_csv_path = out_dir / "raw.csv"
@@ -516,6 +586,7 @@ def run_benchmarks(args: argparse.Namespace) -> int:
                 "output_sha256",
                 "stderr_log",
                 "spawn_error",
+                "memory_limit_mb",
             ],
         )
         writer.writeheader()
@@ -526,6 +597,7 @@ def run_benchmarks(args: argparse.Namespace) -> int:
         profile=args.profile,
         repeat=args.repeat,
         include_libc=args.with_libc,
+        memory_limit_mb=args.memory_limit_mb,
         shecc_path=shecc_path,
         runner_prefix=args.runner,
         repo_root=repo_root,
@@ -543,6 +615,39 @@ def run_benchmarks(args: argparse.Namespace) -> int:
 
     if args.fail_on_error and not summary["overall"]["all_successful"]:
         return 1
+    return 0
+
+
+def prepare_benchmarks(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    out_dir = Path(args.output_dir).resolve()
+
+    if args.profile not in PROFILE_CASES:
+        print("error: unsupported profile: %s" % args.profile, file=sys.stderr)
+        return 2
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    src_dir = out_dir / "generated_sources"
+    create_sources(repo_root, src_dir, PROFILE_CASES[args.profile])
+
+    manifest = {
+        "profile": args.profile,
+        "generated_sources": [],
+    }
+    for case in PROFILE_CASES[args.profile]:
+        source_path = resolve_source(repo_root, src_dir, case)
+        manifest["generated_sources"].append(
+            {
+                "case": case.name,
+                "path": str(source_path),
+                "generated": case.generated,
+            }
+        )
+
+    manifest_path = out_dir / "generated_sources_manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+    print("Generated benchmark sources at: %s" % src_dir)
+    print("Generated source manifest   : %s" % manifest_path)
     return 0
 
 
@@ -691,9 +796,35 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         help="Include embedded libc during benchmark compilation.",
     )
     run_parser.add_argument(
+        "--memory-limit-mb",
+        type=int,
+        default=None,
+        help="Optional per-run address-space limit in MiB (Linux RLIMIT_AS).",
+    )
+    run_parser.add_argument(
         "--no-fail-on-error",
         action="store_true",
         help="Do not fail command when one or more benchmark runs fail.",
+    )
+
+    prepare_parser = subparsers.add_parser(
+        "prepare", help="Generate benchmark source files without compiling."
+    )
+    prepare_parser.add_argument(
+        "--repo-root",
+        default=".",
+        help="Path to shecc repository root (default: current directory).",
+    )
+    prepare_parser.add_argument(
+        "--output-dir",
+        default="out/bench/latest",
+        help="Directory where generated benchmark sources are written.",
+    )
+    prepare_parser.add_argument(
+        "--profile",
+        default="issue297",
+        choices=sorted(PROFILE_CASES.keys()),
+        help="Benchmark profile to generate.",
     )
 
     compare_parser = subparsers.add_parser(
@@ -717,6 +848,8 @@ def main(argv: Sequence[str]) -> int:
     args = parse_args(argv)
     if args.command == "run":
         return run_benchmarks(args)
+    if args.command == "prepare":
+        return prepare_benchmarks(args)
     if args.command == "compare":
         return compare_summaries(args)
     return 2

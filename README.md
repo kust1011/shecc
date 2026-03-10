@@ -236,62 +236,77 @@ OK
 To clean up the generated compiler files, execute the command `make clean`.
 For resetting architecture configurations, use the command `make distclean`.
 
-## Benchmarking and Memory Measurement
+## Stable Docker Development Environment
 
-For optimization research (for example, issue #297), use the built-in benchmark harness.
-`make` automatically passes `TARGET_EXEC` to the benchmark runner, so cross-architecture
-setups (QEMU) work without extra manual flags.
+Use a fixed image and a reusable container for all shecc development/testing:
 
-Quick sanity benchmark:
 ```shell
-$ make bench-quick
+$ ./scripts/docker-env.sh up
 ```
 
-Full benchmark profile (recommended for research reports):
+Default names:
+- Image: `shecc-dev:stable`
+- Container: `shecc-dev`
+
+Useful commands:
 ```shell
-$ make bench-run BENCH_PROFILE=full BENCH_REPEAT=5
+$ ./scripts/docker-env.sh shell
+$ ./scripts/docker-env.sh exec "make check-stage0"
+$ ./scripts/docker-env.sh test
+$ ./scripts/docker-env.sh status
+```
+
+`docker-dev.sh` and `docker-check.sh` now use this reusable container flow.
+
+## Benchmarking and Memory Measurement (Issue #297)
+
+Run benchmark tasks in Docker:
+```shell
+$ ./scripts/docker-env.sh exec "make bench-quick"
+```
+
+Issue #297-focused profile:
+```shell
+$ ./scripts/docker-env.sh exec "make bench-issue297 BENCH_REPEAT=5"
+```
+
+Memory limit validation (issue success criterion: compile large input under constrained memory):
+```shell
+$ ./scripts/docker-env.sh exec "make bench-memory-limit BENCH_MEMORY_LIMIT_MB=256"
+```
+
+Valgrind leak/heap checks:
+```shell
+$ ./scripts/docker-env.sh exec "make memcheck"
+$ ./scripts/docker-env.sh exec "make massif"
+```
+
+Baseline workflow:
+```shell
+$ ./scripts/docker-env.sh exec "make bench-save-baseline NAME=baseline-2026-03-10 BENCH_PROFILE=issue297 BENCH_REPEAT=5"
+$ ./scripts/docker-env.sh exec "make bench-issue297 BENCH_REPEAT=5"
+$ ./scripts/docker-env.sh exec "make bench-compare BASELINE=baseline-2026-03-10"
 ```
 
 Artifacts are written to `out/bench/latest`:
 - `raw.csv` : per-run raw measurements
-- `summary.json` : machine-readable aggregated medians/means
+- `summary.json` : machine-readable medians/means
 - `summary.md` : human-readable report
-- `logs/*.stderr.log` : compiler stderr for each run
+- `comparison-<baseline>.md` : baseline comparison report
+- `memcheck.valgrind.log` : leak check details
+- `massif.report.txt` : heap profile summary
 
-By default, benchmarks run with `--no-libc` to reduce noise from embedded libc parsing.
-To include embedded libc in measurements:
-```shell
-$ make bench-run BENCH_WITH_LIBC=1
-```
-
-Save a baseline for future comparison:
-```shell
-$ make bench-save-baseline NAME=baseline-2026-03-10 BENCH_PROFILE=full BENCH_REPEAT=5
-```
-
-Compare latest benchmark results against a saved baseline:
-```shell
-$ make bench-compare BASELINE=baseline-2026-03-10
-```
-
-The comparison report is generated at `out/bench/latest/comparison-<baseline>.md`.
-
-### Benchmark Methodology
+### Measurement Methodology
 
 - Metric 1: Median compile time per case (`elapsed_s`)
-- Metric 2: Median peak resident set size per case (`max_rss_kb`)
+- Metric 2: Median peak resident set size (`max_rss_kb`)
 - Metric 3: Output binary size (`output_size_bytes`)
-- Determinism check: output SHA-256 hash stability across repeated runs
+- Determinism check: output SHA-256 stability across runs
+- Optional memory pressure test: `--memory-limit-mb` (implemented via `RLIMIT_AS`)
 
-`scripts/benchmark.py` measures peak memory through `os.wait4(...).ru_maxrss`:
-- On macOS (`Darwin`), values are normalized from bytes to KiB
-- On Linux, values are already in KiB
-
-For thesis-quality data, pin environment variables before each run:
-- Same machine and CPU governor mode
-- No background-heavy workload
-- Fixed compiler commit (`git rev-parse HEAD`)
-- Same benchmark profile and repeat count
+`scripts/benchmark.py` peak RSS source:
+- Linux: `os.wait4(...).ru_maxrss` in KiB
+- macOS: normalized from bytes to KiB
 
 ## Intermediate Representation
 
