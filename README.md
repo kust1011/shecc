@@ -258,75 +258,36 @@ $ ./scripts/docker-env.sh status
 
 `docker-dev.sh` and `docker-check.sh` now use this reusable container flow.
 
-## Benchmarking and Memory Measurement (Issue #297)
+## Valgrind Memory Diagnostics
 
-Run benchmark tasks in Docker:
-```shell
-$ ./scripts/docker-env.sh exec "make bench-quick"
-```
-
-All benchmark profiles (`quick`, `full`, `issue297`) now read versioned source files from `tests/memory/`.
-`scripts/benchmark.py` no longer generates benchmark C files at runtime.
-
-Issue #297-focused profile:
-```shell
-$ ./scripts/docker-env.sh exec "make bench-issue297 BENCH_REPEAT=5"
-```
-
-The `issue297` profile uses the exact stress programs from `tests/memory/`:
-- `wide_globals_10000.c`
-- `deep_if_1000.c`
-- `long_statements_100000.c`
-
-Memory limit validation (issue success criterion: compile large input under constrained memory):
-```shell
-$ ./scripts/docker-env.sh exec "make bench-memory-limit BENCH_MEMORY_LIMIT_MB=256"
-```
-
-Valgrind leak/heap checks:
+Run Valgrind diagnostics in Docker:
 ```shell
 $ ./scripts/docker-env.sh exec "make memcheck"
 $ ./scripts/docker-env.sh exec "make massif"
 ```
 
-Validate benchmark data correctness (`raw.csv` vs `summary.json`):
+Defaults:
+- Input source: `tests/memory/long_declarations_500.c`
+- Output directory: `out/valgrind/latest`
+
+Override target input/output:
 ```shell
-$ ./scripts/docker-env.sh exec "make bench-validate BENCH_OUTPUT_DIR=out/bench/issue297-spec"
+$ ./scripts/docker-env.sh exec "make memcheck VALGRIND_INPUT=tests/memory/branch_chain_20.c"
+$ ./scripts/docker-env.sh exec "make massif VALGRIND_OUTPUT_DIR=out/valgrind/branch-chain"
 ```
 
-Baseline workflow:
-```shell
-$ ./scripts/docker-env.sh exec "make bench-save-baseline NAME=baseline-2026-03-10 BENCH_PROFILE=issue297 BENCH_REPEAT=5"
-$ ./scripts/docker-env.sh exec "make bench-issue297 BENCH_REPEAT=5"
-$ ./scripts/docker-env.sh exec "make bench-compare BASELINE=baseline-2026-03-10"
-```
+Artifacts:
+- `memcheck.stdout.log`
+- `memcheck.valgrind.log`
+- `memcheck.summary.txt`
+- `memcheck.exit_code`
+- `massif.stdout.log`
+- `massif.stderr.log`
+- `massif.out`
+- `massif.report.txt`
+- `massif.exit_code`
 
-Artifacts are written to `out/bench/latest`:
-- `raw.csv` : per-run raw measurements
-- `summary.json` : machine-readable medians/means
-- `summary.md` : human-readable report
-- `comparison-<baseline>.md` : baseline comparison report
-- `memcheck.valgrind.log` : leak check details
-- `memcheck.exit_code` : shecc process exit code under Valgrind memcheck
-- `massif.report.txt` : heap profile summary
-- `massif.exit_code` : shecc process exit code under Valgrind massif
-
-Notes:
-- `bench-issue297` and `bench-memory-limit` intentionally continue even if some cases fail, so all failure/exit-code data are captured in `raw.csv`.
-- `memcheck` and `massif` also continue on compiler crash and always write logs/exit-code files for postmortem analysis.
-- If you want hard-fail behavior for leaks, use `make memcheck-strict`.
-
-### Measurement Methodology
-
-- Metric 1: Median compile time per case (`elapsed_s`)
-- Metric 2: Median peak resident set size (`max_rss_kb`)
-- Metric 3: Output binary size (`output_size_bytes`)
-- Determinism check: output SHA-256 stability across runs
-- Optional memory pressure test: `--memory-limit-mb` (implemented via `RLIMIT_AS`)
-
-`scripts/benchmark.py` peak RSS source:
-- Linux: `os.wait4(...).ru_maxrss` in KiB
-- macOS: normalized from bytes to KiB
+`make memcheck-strict` enables `--error-exitcode=1` and fails on Valgrind-reported memory errors/leaks.
 
 ## Intermediate Representation
 
