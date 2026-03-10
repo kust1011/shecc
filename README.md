@@ -236,6 +236,63 @@ OK
 To clean up the generated compiler files, execute the command `make clean`.
 For resetting architecture configurations, use the command `make distclean`.
 
+## Benchmarking and Memory Measurement
+
+For optimization research (for example, issue #297), use the built-in benchmark harness.
+`make` automatically passes `TARGET_EXEC` to the benchmark runner, so cross-architecture
+setups (QEMU) work without extra manual flags.
+
+Quick sanity benchmark:
+```shell
+$ make bench-quick
+```
+
+Full benchmark profile (recommended for research reports):
+```shell
+$ make bench-run BENCH_PROFILE=full BENCH_REPEAT=5
+```
+
+Artifacts are written to `out/bench/latest`:
+- `raw.csv` : per-run raw measurements
+- `summary.json` : machine-readable aggregated medians/means
+- `summary.md` : human-readable report
+- `logs/*.stderr.log` : compiler stderr for each run
+
+By default, benchmarks run with `--no-libc` to reduce noise from embedded libc parsing.
+To include embedded libc in measurements:
+```shell
+$ make bench-run BENCH_WITH_LIBC=1
+```
+
+Save a baseline for future comparison:
+```shell
+$ make bench-save-baseline NAME=baseline-2026-03-10 BENCH_PROFILE=full BENCH_REPEAT=5
+```
+
+Compare latest benchmark results against a saved baseline:
+```shell
+$ make bench-compare BASELINE=baseline-2026-03-10
+```
+
+The comparison report is generated at `out/bench/latest/comparison-<baseline>.md`.
+
+### Benchmark Methodology
+
+- Metric 1: Median compile time per case (`elapsed_s`)
+- Metric 2: Median peak resident set size per case (`max_rss_kb`)
+- Metric 3: Output binary size (`output_size_bytes`)
+- Determinism check: output SHA-256 hash stability across repeated runs
+
+`scripts/benchmark.py` measures peak memory through `os.wait4(...).ru_maxrss`:
+- On macOS (`Darwin`), values are normalized from bytes to KiB
+- On Linux, values are already in KiB
+
+For thesis-quality data, pin environment variables before each run:
+- Same machine and CPU governor mode
+- No background-heavy workload
+- Fixed compiler commit (`git rev-parse HEAD`)
+- Same benchmark profile and repeat count
+
 ## Intermediate Representation
 
 Once the option `--dump-ir` is passed to `shecc`, the intermediate representation (IR)

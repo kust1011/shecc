@@ -65,6 +65,17 @@ TESTBINS := $(TESTS:%.c=$(OUT)/%.elf)
 SNAPSHOTS = $(foreach SNAPSHOT_ARCH,$(ARCHS), $(patsubst tests/%.c, tests/snapshots/%-$(SNAPSHOT_ARCH)-static.json, $(TESTS)))
 SNAPSHOTS += $(patsubst tests/%.c, tests/snapshots/%-arm-dynamic.json, $(TESTS))
 
+BENCH_SCRIPT := scripts/benchmark.py
+BENCH_OUTPUT_DIR ?= out/bench/latest
+BENCH_PROFILE ?= full
+BENCH_REPEAT ?= 5
+BENCH_BASELINE_DIR ?= benchmarks/baselines
+BENCH_WITH_LIBC ?= 0
+BENCH_LIBC_FLAG :=
+ifeq ($(BENCH_WITH_LIBC),1)
+BENCH_LIBC_FLAG := --with-libc
+endif
+
 all: config bootstrap
 
 sanitizer: CFLAGS += -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer -O0
@@ -144,6 +155,47 @@ update-snapshot: $(OUT)/$(STAGE0) tests/update-snapshots.sh
 	tests/update-snapshots.sh $(ARCH) $(DYNLINK)
 	$(VECHO) "  OK\n"
 
+bench-run: $(OUT)/$(STAGE0) $(BENCH_SCRIPT)
+	$(VECHO) "Running benchmark profile=%s repeat=%s\n" $(BENCH_PROFILE) $(BENCH_REPEAT)
+	$(Q)python3 $(BENCH_SCRIPT) run \
+		--repo-root . \
+		--shecc $(OUT)/$(STAGE0) \
+		--runner "$(TARGET_EXEC)" \
+		--output-dir $(BENCH_OUTPUT_DIR) \
+		--profile $(BENCH_PROFILE) \
+		--repeat $(BENCH_REPEAT) $(BENCH_LIBC_FLAG)
+
+bench-quick: $(OUT)/$(STAGE0) $(BENCH_SCRIPT)
+	$(VECHO) "Running quick benchmark profile\n"
+	$(Q)python3 $(BENCH_SCRIPT) run \
+		--repo-root . \
+		--shecc $(OUT)/$(STAGE0) \
+		--runner "$(TARGET_EXEC)" \
+		--output-dir $(BENCH_OUTPUT_DIR) \
+		--profile quick \
+		--repeat 3 $(BENCH_LIBC_FLAG)
+
+bench-save-baseline: bench-run
+	$(Q)if [ -z "$(NAME)" ]; then \
+		echo "Usage: make bench-save-baseline NAME=<label> [BENCH_PROFILE=full BENCH_REPEAT=5]"; \
+		exit 1; \
+	fi
+	$(Q)mkdir -p $(BENCH_BASELINE_DIR)
+	$(Q)cp $(BENCH_OUTPUT_DIR)/summary.json $(BENCH_BASELINE_DIR)/$(NAME).json
+	$(Q)cp $(BENCH_OUTPUT_DIR)/summary.md $(BENCH_BASELINE_DIR)/$(NAME).md
+	$(VECHO) "Saved baseline as %s/%s.json\n" $(BENCH_BASELINE_DIR) $(NAME)
+
+bench-compare: $(BENCH_SCRIPT)
+	$(Q)if [ -z "$(BASELINE)" ]; then \
+		echo "Usage: make bench-compare BASELINE=<label>"; \
+		echo "Expected file: $(BENCH_BASELINE_DIR)/<label>.json"; \
+		exit 1; \
+	fi
+	$(Q)python3 $(BENCH_SCRIPT) compare \
+		--baseline $(BENCH_BASELINE_DIR)/$(BASELINE).json \
+		--current $(BENCH_OUTPUT_DIR)/summary.json \
+		--output $(BENCH_OUTPUT_DIR)/comparison-$(BASELINE).md
+
 $(OUT)/%.o: %.c
 	$(VECHO) "  CC\t$@\n"
 	$(Q)$(CC) -o $@ $(CFLAGS) -c -MMD -MF $@.d $<
@@ -192,7 +244,7 @@ bootstrap: $(OUT)/$(STAGE2)
 $(BUILD_SESSION):
 	$(PRINTF) "ARCH=$(ARCH)" > $@
 
-.PHONY: clean
+.PHONY: clean bench-run bench-quick bench-save-baseline bench-compare
 clean:
 	-$(RM) $(OUT)/$(STAGE0) $(OUT)/$(STAGE1) $(OUT)/$(STAGE2)
 	-$(RM) $(OBJS) $(deps)
