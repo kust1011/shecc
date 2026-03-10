@@ -1412,7 +1412,7 @@ int compact_arenas_selective(int phase_mask)
     return total_saved;
 }
 
-static void free_src_file_map_values(void)
+void free_src_file_map_values(void)
 {
     if (!SRC_FILE_MAP)
         return;
