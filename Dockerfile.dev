@@ -8,6 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     clang \
     file \
+    gdb \
+    gdb-multiarch \
     gcc-arm-linux-gnueabihf \
     git \
     graphviz \
